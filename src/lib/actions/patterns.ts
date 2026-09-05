@@ -57,6 +57,20 @@ export async function createPattern(formData: FormData) {
   redirect(`/estudio/${pattern.id}`);
 }
 
+// Every page that can show a pattern's grid_data (thumbnails, the project's
+// garment sketch, the combined document) reads it via a server-rendered
+// fetch, so anything that mutates grid_data must revalidate all of them —
+// otherwise those pages keep showing what the pattern looked like before
+// the edit.
+async function revalidatePatternViews(patternId: string, projectId: string | null) {
+  revalidatePath("/estudio");
+  revalidatePath(`/estudio/${patternId}`);
+  if (projectId) {
+    revalidatePath(`/proyectos/${projectId}/patron`);
+    revalidatePath(`/proyectos/${projectId}/patron-completo`);
+  }
+}
+
 export async function saveGridData(
   patternId: string,
   paletteId: string | null,
@@ -65,14 +79,18 @@ export async function saveGridData(
 ) {
   const supabase = await createClient();
 
-  await supabase
+  const { data: pattern } = await supabase
     .from("patterns")
     .update({ grid_data: gridData, updated_at: new Date().toISOString() })
-    .eq("id", patternId);
+    .eq("id", patternId)
+    .select("project_id")
+    .single();
 
   if (paletteId) {
     await supabase.from("palettes").update({ colors }).eq("id", paletteId);
   }
+
+  await revalidatePatternViews(patternId, pattern?.project_id ?? null);
 }
 
 export async function syncPatternState(
@@ -85,7 +103,7 @@ export async function syncPatternState(
 ) {
   const supabase = await createClient();
 
-  await supabase
+  const { data: pattern } = await supabase
     .from("patterns")
     .update({
       width_stitches: width,
@@ -93,11 +111,15 @@ export async function syncPatternState(
       grid_data: gridData,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", patternId);
+    .eq("id", patternId)
+    .select("project_id")
+    .single();
 
   if (paletteId) {
     await supabase.from("palettes").update({ colors }).eq("id", paletteId);
   }
+
+  await revalidatePatternViews(patternId, pattern?.project_id ?? null);
 }
 
 export async function resizePatternGrid(
@@ -108,7 +130,7 @@ export async function resizePatternGrid(
 ) {
   const supabase = await createClient();
 
-  await supabase
+  const { data: pattern } = await supabase
     .from("patterns")
     .update({
       width_stitches: width,
@@ -116,7 +138,11 @@ export async function resizePatternGrid(
       grid_data: gridData,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", patternId);
+    .eq("id", patternId)
+    .select("project_id")
+    .single();
+
+  await revalidatePatternViews(patternId, pattern?.project_id ?? null);
 }
 
 export async function savePatternVersion(
