@@ -1,9 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { askClaude } from "@/lib/ai/client";
 import type { RaglanInputs, RaglanResults } from "@/lib/calculators/raglan";
 import type { PaletteColor } from "@/lib/types/pattern";
+import { PROJECT_TYPES } from "@/lib/types/project";
+import { platformLabel, type ContentTone } from "@/lib/types/content";
 
 type ActionResult<T> = T | { error: string };
 
@@ -120,6 +123,69 @@ Revisá si algo en estos números se ve fuera de lo común para una prenda tejid
   try {
     const review = await askClaude(prompt, 400);
     return { review };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+const TONE_INSTRUCTIONS: Record<ContentTone, string> = {
+  educational:
+    "Educativo: enseñale algo puntual a quien lee (una técnica, un dato sobre la lana o el proceso), como si fuera un mini-tip útil.",
+  inspirational:
+    "Inspiracional: transmití la parte emotiva y artesanal del proceso — el tiempo, el cariño, la historia detrás de la prenda.",
+  commercial:
+    "Comercial: invitá a comprar o encargar una prenda similar, con una bajada de acción clara pero sin sonar agresivo.",
+};
+
+export async function generateCaption(
+  contentId: string,
+  tone: ContentTone,
+): Promise<ActionResult<{ caption: string; hashtags: string[] }>> {
+  const supabase = await createClient();
+
+  const { data: content } = await supabase
+    .from("social_content")
+    .select("platform, hook_text, projects(name, type, recipient)")
+    .eq("id", contentId)
+    .single<{
+      platform: string;
+      hook_text: string | null;
+      projects: { name: string; type: string | null; recipient: string | null } | null;
+    }>();
+
+  if (!content) return { error: "No se encontró la publicación." };
+
+  const project = content.projects;
+  const typeLabel = PROJECT_TYPES.find((t) => t.value === project?.type)?.label ?? "prenda";
+  const platform = platformLabel(content.platform);
+
+  const prompt = `Sos quien escribe las redes sociales de Yakana, un emprendimiento artesanal de tejido a mano (dos agujas y crochet). Necesito el texto (caption) para una publicación de ${platform} sobre "${project?.name ?? "un proyecto"}" (${typeLabel}${project?.recipient ? `, para ${project.recipient}` : ""}).
+${content.hook_text ? `La idea/gancho que quiero transmitir es: "${content.hook_text}".` : ""}
+
+Tono: ${TONE_INSTRUCTIONS[tone]}
+
+Escribí en español rioplatense, cercano y cálido, sin sonar corporativo. Máximo 4 a 6 líneas cortas. Podés usar algún emoji con moderación, no abuses. Después sumá de 5 a 8 hashtags relevantes (mezclá algunos en español y otros en inglés, típicos del mundo tejido/handmade).
+
+Respondé EXACTAMENTE en este formato, sin nada antes ni después:
+CAPTION: <el texto acá>
+HASHTAGS: #tag1 #tag2 #tag3`;
+
+  try {
+    const text = await askClaude(prompt, 500);
+    const captionMatch = text.match(/CAPTION:\s*([\s\S]*?)\s*HASHTAGS:/i);
+    const hashtagsMatch = text.match(/HASHTAGS:\s*([\s\S]*)/i);
+    const caption = captionMatch ? captionMatch[1].trim() : text.trim();
+    const hashtags = hashtagsMatch
+      ? (hashtagsMatch[1].match(/#[\p{L}0-9_]+/gu) ?? [])
+      : [];
+
+    await supabase
+      .from("social_content")
+      .update({ caption_es: caption, hashtags })
+      .eq("id", contentId);
+    revalidatePath(`/contenido/${contentId}`);
+
+    return { caption, hashtags };
   } catch (err) {
     return { error: errorMessage(err) };
   }
