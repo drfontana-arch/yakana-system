@@ -5,7 +5,7 @@ import { signIn } from "@/lib/actions/auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; registered?: string }>;
+  searchParams: Promise<{ error?: string; registered?: string; reset?: string }>;
 }) {
   const params = await searchParams;
 
@@ -30,6 +30,12 @@ export default async function LoginPage({
           <p className="mb-4 rounded-yakana border border-olive/30 bg-olive/10 px-3 py-2 text-sm text-olive">
             Cuenta creada. Revisá tu email para confirmar la cuenta antes de
             ingresar (si la confirmación está activada).
+          </p>
+        ) : null}
+
+        {params.reset ? (
+          <p className="mb-4 rounded-yakana border border-olive/30 bg-olive/10 px-3 py-2 text-sm text-olive">
+            Contraseña actualizada — ya podés ingresar con la nueva.
           </p>
         ) : null}
 
@@ -71,6 +77,12 @@ export default async function LoginPage({
             Ingresar
           </button>
         </form>
+
+        <p className="mt-3 text-center text-sm">
+          <Link href="/forgot-password" className="font-medium text-terracotta">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
 
         <p className="mt-4 text-center text-sm text-charcoal/70">
           ¿No tenés cuenta todavía?{" "}

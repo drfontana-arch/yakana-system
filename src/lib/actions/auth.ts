@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signIn(formData: FormData) {
@@ -38,6 +39,23 @@ export async function signUp(formData: FormData) {
   }
 
   redirect("/login?registered=1");
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = formData.get("email") as string;
+  const supabase = await createClient();
+
+  const h = await headers();
+  const host = h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
+  const redirectTo = `${proto}://${host}/reset-password`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+  if (error) {
+    redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+  }
+  redirect("/forgot-password?sent=1");
 }
 
 export async function signOut() {
