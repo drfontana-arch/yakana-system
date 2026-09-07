@@ -31,6 +31,7 @@ export async function updateStandardSize(id: string, formData: FormData) {
       chest_cm: num("chest_cm"),
       body_length_cm: num("body_length_cm"),
       yoke_depth_cm: num("yoke_depth_cm"),
+      armhole_depth_cm: num("armhole_depth_cm"),
       neck_cm: num("neck_cm"),
       shoulder_width_cm: num("shoulder_width_cm"),
       sleeve_length_cm: num("sleeve_length_cm"),

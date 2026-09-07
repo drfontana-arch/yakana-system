@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { ensureStandardSizes } from "@/lib/actions/sizes";
-import { RaglanCalculator } from "@/components/calculadora/raglan-calculator";
+import { ConstructionSwitcher } from "@/components/calculadora/construction-switcher";
 import type { StandardSize } from "@/lib/types/size";
 import type { Project } from "@/lib/types/project";
 
@@ -36,7 +36,7 @@ export default async function CalculadoraPage() {
         title="Calculadora"
         description="Muestra, tallas estándar y cálculo de canesú raglán."
       />
-      <RaglanCalculator
+      <ConstructionSwitcher
         sizes={sizes ?? []}
         defaultWastePct={profile?.waste_allowance_pct ?? 10}
         projects={projects ?? []}
