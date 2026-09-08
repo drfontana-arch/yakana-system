@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { GarmentSketch } from "@/components/calculadora/garment-sketch";
+import { ImagePromptGenerator } from "@/components/proyectos/image-prompt-generator";
 import { ColorChartDisplay } from "@/components/estudio/color-chart-display";
 import { StitchChartDisplay, StitchChartLegend } from "@/components/estudio/stitch-chart-display";
 import {
@@ -193,6 +194,12 @@ export default async function PatronCompletoPage({
                 vista previa aproximada — no está tejido a la escala exacta de tu muestra.
               </p>
             ) : null}
+          </section>
+        ) : null}
+
+        {m ? (
+          <section className="mb-6">
+            <ImagePromptGenerator projectId={id} />
           </section>
         ) : (
           <p className="mb-6 rounded-yakana border border-dashed border-linen p-4 text-center text-sm text-charcoal/60">

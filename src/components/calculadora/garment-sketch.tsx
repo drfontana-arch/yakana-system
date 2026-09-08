@@ -220,9 +220,18 @@ export function GarmentSketch({
             </pattern>
           );
         })}
+        <linearGradient id={`sheen-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.35} />
+          <stop offset="45%" stopColor="#ffffff" stopOpacity={0.05} />
+          <stop offset="100%" stopColor="#1a2744" stopOpacity={0.12} />
+        </linearGradient>
+        <filter id={`softShadow-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#1a2744" floodOpacity={0.18} />
+        </filter>
       </defs>
 
       {/* Right sleeve */}
+      <g filter={`url(#softShadow-${uid})`}>
       <polygon
         points={`
           ${centerX + halfChest},${underarmY - halfSleeveCirc}
@@ -304,6 +313,43 @@ export function GarmentSketch({
         fill={fill("ribbing")}
         {...strokeFor("ribbing")}
       />
+      </g>
+
+      {/* Soft top-lit sheen over every shape, for a bit of volume instead of
+          a flat silhouette — same shapes redrawn with no stroke, blended on
+          top rather than replacing the real fill underneath. */}
+      <g style={{ mixBlendMode: "overlay" }} pointerEvents="none">
+        <polygon
+          points={`
+            ${centerX + halfChest},${underarmY - halfSleeveCirc}
+            ${centerX + halfChest + sleeveLength},${underarmY - halfCuff}
+            ${centerX + halfChest + sleeveLength},${underarmY + halfCuff}
+            ${centerX + halfChest},${underarmY + halfSleeveCirc}
+          `}
+          fill={`url(#sheen-${uid})`}
+        />
+        <polygon
+          points={`
+            ${centerX - halfChest},${underarmY - halfSleeveCirc}
+            ${centerX - halfChest - sleeveLength},${underarmY - halfCuff}
+            ${centerX - halfChest - sleeveLength},${underarmY + halfCuff}
+            ${centerX - halfChest},${underarmY + halfSleeveCirc}
+          `}
+          fill={`url(#sheen-${uid})`}
+        />
+        <polygon
+          points={`${yokeTopPoints} ${centerX + halfChest},${underarmY} ${centerX - halfChest},${underarmY}`}
+          fill={`url(#sheen-${uid})`}
+        />
+        <polygon points={bodyPoints} fill={`url(#sheen-${uid})`} />
+        <rect
+          x={centerX - hemHalfWidth}
+          y={hemY}
+          width={hemHalfWidth * 2}
+          height={ribbing}
+          fill={`url(#sheen-${uid})`}
+        />
+      </g>
 
       {/* Center-front opening, for cardigans/vests/zip styles */}
       {isOpenFront ? (

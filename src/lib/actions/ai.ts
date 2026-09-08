@@ -6,6 +6,9 @@ import { askClaude } from "@/lib/ai/client";
 import type { RaglanInputs, RaglanResults } from "@/lib/calculators/raglan";
 import type { PaletteColor } from "@/lib/types/pattern";
 import { PROJECT_TYPES } from "@/lib/types/project";
+import { neckStyleLabel, closureTypeLabel, BODY_FITS } from "@/lib/calculators/raglan-options";
+import type { ProjectYarn } from "@/lib/types/project";
+import type { Pattern } from "@/lib/types/pattern";
 import { platformLabel, type ContentTone } from "@/lib/types/content";
 
 type ActionResult<T> = T | { error: string };
@@ -186,6 +189,84 @@ HASHTAGS: #tag1 #tag2 #tag3`;
     revalidatePath(`/contenido/${contentId}`);
 
     return { caption, hashtags };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+export async function generateGarmentImagePrompt(
+  projectId: string,
+): Promise<ActionResult<{ prompt: string }>> {
+  const supabase = await createClient();
+
+  const [{ data: project }, { data: calc }, { data: projectYarns }, { data: patterns }] =
+    await Promise.all([
+      supabase.from("projects").select("*").eq("id", projectId).single(),
+      supabase
+        .from("raglan_calculations")
+        .select("measurements")
+        .eq("project_id", projectId)
+        .eq("is_miniature", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ measurements: Record<string, number | string> }>(),
+      supabase
+        .from("project_yarns")
+        .select("*, yarns(*)")
+        .eq("project_id", projectId)
+        .returns<ProjectYarn[]>(),
+      supabase
+        .from("patterns")
+        .select("*, palettes(*)")
+        .eq("project_id", projectId)
+        .not("garment_zone", "is", null)
+        .returns<Pattern[]>(),
+    ]);
+
+  if (!project) return { error: "No se encontró el proyecto." };
+
+  const typeLabel = PROJECT_TYPES.find((t) => t.value === project.type)?.label ?? "prenda tejida";
+  const m = calc?.measurements;
+  const neckDesc = m?.neckStyle ? neckStyleLabel(String(m.neckStyle)).toLowerCase() : null;
+  const fitDesc = m?.bodyFit
+    ? (BODY_FITS.find((f) => f.value === m.bodyFit)?.label ?? String(m.bodyFit)).toLowerCase()
+    : null;
+  const closureDesc = m?.closureType ? closureTypeLabel(String(m.closureType)).toLowerCase() : null;
+
+  const yarnDescriptions = (projectYarns ?? [])
+    .map((py) => {
+      const yarn = py.yarns;
+      if (!yarn) return null;
+      const fiber = yarn.fiber_content ? ` de ${yarn.fiber_content}` : "";
+      const colorway = yarn.colorway_name ? ` color "${yarn.colorway_name}"` : "";
+      return `${yarn.name}${colorway}${fiber}${yarn.color_hex ? ` (tono aproximado ${yarn.color_hex})` : ""}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+
+  const colorworkDescriptions = (patterns ?? [])
+    .filter((p) => p.display_mode !== "stitch")
+    .map((p) => {
+      const colors = (p.palettes?.colors ?? []).map((c) => c.name || c.hex).join(", ");
+      return `en la zona "${p.garment_zone}" un motivo de tejido a color llamado "${p.name}" con estos colores: ${colors}`;
+    })
+    .join("; ");
+
+  const prompt = `Sos un asistente que arma prompts para generadores de imágenes (como Gemini). Necesito un prompt en español, detallado y evocador, para generar una foto de producto realista de una prenda tejida a mano que todavía no existe — se está por tejer, así que la imagen es una anticipación de cómo va a quedar.
+
+Datos de la prenda:
+- Tipo: ${typeLabel}${project.recipient ? `, para ${project.recipient}` : ""}${project.size_label ? `, talla ${project.size_label}` : ""}.
+${neckDesc ? `- Cuello: ${neckDesc}.` : ""}
+${fitDesc ? `- Entalle del cuerpo: ${fitDesc}.` : ""}
+${closureDesc ? `- Cierre: ${closureDesc}.` : ""}
+${yarnDescriptions ? `- Lanas: ${yarnDescriptions}.` : "- No hay lanas específicas cargadas todavía; usá colores neutros tierra a tu criterio."}
+${colorworkDescriptions ? `- Detalles de color: ${colorworkDescriptions}.` : ""}
+
+Escribí el prompt final (nada más, sin explicaciones antes ni después) en español, en un solo párrafo, describiendo: la prenda tejida a mano con esas características, la textura realista de punto de lana, los colores exactos mencionados, iluminación de estudio suave y natural, fotografía de producto tipo flat-lay sobre fondo neutro claro, alta resolución, sin persona ni maniquí. El prompt tiene que quedar listo para pegar directamente en un generador de imágenes.`;
+
+  try {
+    const text = await askClaude(prompt, 500);
+    return { prompt: text.trim() };
   } catch (err) {
     return { error: errorMessage(err) };
   }
