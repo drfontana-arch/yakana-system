@@ -1,4 +1,4 @@
-import { stitchInfo, DEFAULT_STITCH } from "@/lib/types/stitch-symbols";
+import { stitchInfo, DEFAULT_STITCH, parseCableCell, cableInstruction } from "@/lib/types/stitch-symbols";
 import type { GridData } from "@/lib/types/pattern";
 
 const REPEATED_OPERATIONS = new Set(["K2TOG", "SSK", "M1"]);
@@ -32,6 +32,14 @@ export function buildStitchRowInstructions(
     const parts: string[] = [];
     let start = 0;
     while (start < symbols.length) {
+      const cable = parseCableCell(symbols[start]);
+      if (cable) {
+        // Only the span's first cell emits the instruction — the rest are
+        // just the same cable's remaining cells, already accounted for.
+        if (cable.index === 0) parts.push(cableInstruction(cable.direction, cable.width));
+        start += 1;
+        continue;
+      }
       let end = start;
       while (end < symbols.length && symbols[end] === symbols[start]) end++;
       parts.push(phraseFor(symbols[start], end - start));

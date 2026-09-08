@@ -1,13 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, PaintBucket, Pipette, Eraser, Undo2, Redo2, Save, Trash2, BookOpen } from "lucide-react";
+import { Pencil, PaintBucket, Pipette, Eraser, Shuffle, Undo2, Redo2, Save, Trash2, BookOpen } from "lucide-react";
 import clsx from "clsx";
 import { ResizePanel } from "@/components/estudio/resize-panel";
 import { saveGridData, savePatternVersion, resizePatternGrid, syncPatternState } from "@/lib/actions/patterns";
 import { publishPatternToLibrary } from "@/lib/actions/library";
 import { buildStitchRowInstructions } from "@/lib/stitch-chart";
-import { STITCH_SYMBOLS, DEFAULT_STITCH, stitchInfo, type StitchSymbol } from "@/lib/types/stitch-symbols";
+import {
+  STITCH_SYMBOLS,
+  DEFAULT_STITCH,
+  stitchInfo,
+  encodeCableCell,
+  parseCableCell,
+  cableLabel,
+  type StitchSymbol,
+  type CableDirection,
+} from "@/lib/types/stitch-symbols";
 import type { GridData, Pattern } from "@/lib/types/pattern";
 
 const GRID_LINE_COLOR = "#c8b89a";
@@ -18,7 +27,7 @@ const NS_BG = "#d8d0bd";
 const UNDO_LIMIT = 50;
 const AUTOSAVE_DELAY_MS = 1500;
 
-type Tool = "pencil" | "bucket" | "eyedropper" | "eraser";
+type Tool = "pencil" | "bucket" | "eyedropper" | "eraser" | "cable";
 
 type HistorySnapshot = { gridData: GridData; width: number; height: number };
 
@@ -63,6 +72,9 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
   const [gridData, setGridData] = useState<GridData>(pattern.grid_data ?? {});
   const [activeSymbol, setActiveSymbol] = useState<StitchSymbol>("P");
   const [tool, setTool] = useState<Tool>("pencil");
+  const [cableDirection, setCableDirection] = useState<CableDirection>("L");
+  const [cableWidth, setCableWidth] = useState(4);
+  const [cableError, setCableError] = useState("");
   const [cellSize, setCellSize] = useState(24);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [versionLabel, setVersionLabel] = useState("");
@@ -80,8 +92,9 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const ctx = context;
 
     canvas.width = width * cellSize + rulerSize;
     canvas.height = height * cellSize + rulerSize;
@@ -106,15 +119,71 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
         const symbol = gridData[cellKey(col, row)] ?? DEFAULT_STITCH;
         const x = rulerSize + col * cellSize;
         const y = rulerSize + row * cellSize;
-        ctx.fillStyle = symbol === "NS" ? NS_BG : CELL_BG;
+        const cable = parseCableCell(symbol);
+        ctx.fillStyle = symbol === "NS" ? NS_BG : cable ? "#efe6d4" : CELL_BG;
         ctx.fillRect(x, y, cellSize, cellSize);
-        if (symbol !== "K") {
+        if (!cable && symbol !== "K") {
           const glyph = stitchInfo(symbol).glyph;
           ctx.fillStyle = "#2c3e50";
           ctx.font = `${Math.round(cellSize * 0.6)}px sans-serif`;
           ctx.fillText(glyph, x + cellSize / 2, y + cellSize / 2 + 1);
         }
       }
+    }
+
+    // Cable crosses span several cells — drawn as one crossing glyph over
+    // the whole span, triggered once from the span's first cell, instead of
+    // a per-cell symbol like every other stitch.
+    for (const [key, symbol] of Object.entries(gridData)) {
+      const cable = parseCableCell(symbol);
+      if (!cable || cable.index !== 0) continue;
+      const [col, row] = key.split(",").map(Number);
+      const x0 = rulerSize + col * cellSize;
+      const y0 = rulerSize + row * cellSize;
+      const spanW = cable.width * cellSize;
+      const midX = x0 + spanW / 2;
+      const midY = y0 + cellSize / 2;
+      const topY = y0 + cellSize * 0.2;
+      const botY = y0 + cellSize * 0.8;
+      const leftX = x0 + cellSize * 0.15;
+      const rightX = x0 + spanW - cellSize * 0.15;
+
+      ctx.lineWidth = Math.max(2, cellSize * 0.12);
+      ctx.lineCap = "round";
+      // The strand that crosses IN FRONT is drawn solid and on top; the one
+      // that goes behind is drawn first and left with a small gap at the
+      // crossing point, the usual chart convention for which side is which.
+      const frontFromLeft = cable.direction === "L";
+      ctx.strokeStyle = "#8b3a2a";
+
+      function halfLine(fromX: number, fromY: number, toX: number, toY: number, gap: boolean) {
+        if (!gap) {
+          ctx.beginPath();
+          ctx.moveTo(fromX, fromY);
+          ctx.lineTo(toX, toY);
+          ctx.stroke();
+          return;
+        }
+        const gapSize = cellSize * 0.35;
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(midX - (ux * gapSize) / 2, midY - (uy * gapSize) / 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(midX + (ux * gapSize) / 2, midY + (uy * gapSize) / 2);
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+      }
+
+      // Back strand first (with a gap at the crossing), then the front
+      // strand unbroken on top.
+      halfLine(leftX, topY, rightX, botY, !frontFromLeft);
+      halfLine(rightX, topY, leftX, botY, frontFromLeft);
     }
 
     ctx.strokeStyle = GRID_LINE_COLOR;
@@ -193,6 +262,31 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
     if (tool === "bucket") {
       pushUndo({ gridData, width, height });
       commitGridChange(floodFill(gridData, width, height, cell.col, cell.row, activeSymbol));
+      return;
+    }
+    if (tool === "eraser") {
+      const existing = parseCableCell(gridData[cellKey(cell.col, cell.row)] ?? "");
+      if (existing) {
+        pushUndo({ gridData, width, height });
+        const next = { ...gridData };
+        const startCol = cell.col - existing.index;
+        for (let i = 0; i < existing.width; i++) delete next[cellKey(startCol + i, cell.row)];
+        commitGridChange(next);
+        return;
+      }
+    }
+    if (tool === "cable") {
+      setCableError("");
+      if (cell.col + cableWidth > width) {
+        setCableError(`No entra: hacen falta ${cableWidth} puntos libres a la derecha de esa columna.`);
+        return;
+      }
+      pushUndo({ gridData, width, height });
+      const next = { ...gridData };
+      for (let i = 0; i < cableWidth; i++) {
+        next[cellKey(cell.col + i, cell.row)] = encodeCableCell(cableDirection, cableWidth, i);
+      }
+      commitGridChange(next);
       return;
     }
 
@@ -349,6 +443,7 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
     { key: "bucket", icon: PaintBucket, label: "Balde de relleno" },
     { key: "eyedropper", icon: Pipette, label: "Gotero" },
     { key: "eraser", icon: Eraser, label: "Borrador (punto derecho)" },
+    { key: "cable", icon: Shuffle, label: "Trenza" },
   ];
 
   const instructions = buildStitchRowInstructions(gridData, width, height);
@@ -403,7 +498,53 @@ export function StitchPatternEditor({ pattern }: { pattern: Pattern }) {
               </button>
             ))}
           </div>
+          <p className="mt-2 border-t border-linen pt-2 text-xs text-charcoal/50">
+            Trenzas: la línea entera pasa por delante, la línea con un corte pasa por detrás.
+          </p>
         </div>
+
+        {tool === "cable" ? (
+          <div className="rounded-yakana border border-linen bg-offwhite p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-charcoal/60">
+              Trenza a colocar
+            </p>
+            <div className="mb-2 flex gap-1.5">
+              {(["L", "R"] as CableDirection[]).map((dir) => (
+                <button
+                  key={dir}
+                  type="button"
+                  onClick={() => setCableDirection(dir)}
+                  className={clsx(
+                    "flex-1 rounded-yakana px-2 py-1.5 text-xs font-medium",
+                    cableDirection === dir ? "bg-terracotta text-offwhite" : "border border-linen hover:bg-linen",
+                  )}
+                >
+                  {dir === "L" ? "Izquierda" : "Derecha"}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              {[2, 4, 6].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setCableWidth(w)}
+                  className={clsx(
+                    "flex-1 rounded-yakana px-2 py-1.5 text-xs font-medium",
+                    cableWidth === w ? "bg-terracotta text-offwhite" : "border border-linen hover:bg-linen",
+                  )}
+                >
+                  {w / 2} sobre {w / 2}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-charcoal/60">{cableLabel(cableDirection, cableWidth)}</p>
+            <p className="mt-1 text-xs text-charcoal/50">
+              Hacé clic en el primer punto (el de más a la izquierda) de la trenza.
+            </p>
+            {cableError ? <p className="mt-1 text-xs text-terracotta">{cableError}</p> : null}
+          </div>
+        ) : null}
 
         <ResizePanel
           width={width}
