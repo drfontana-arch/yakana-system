@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { GarmentSketch } from "@/components/calculadora/garment-sketch";
-import { PatternThumbnail } from "@/components/estudio/pattern-thumbnail";
+import { ColorChartDisplay } from "@/components/estudio/color-chart-display";
+import { StitchChartDisplay, StitchChartLegend } from "@/components/estudio/stitch-chart-display";
 import {
   GARMENT_ZONE_LABELS,
   type GarmentZone,
@@ -17,6 +18,7 @@ import {
   syncGuidanceText,
   buildAnnotatedInstructions,
 } from "@/lib/pattern-sync";
+import { buildStitchRowInstructions } from "@/lib/stitch-chart";
 import { CONSTRUCTION_DIRECTIONS, PROJECT_TYPES } from "@/lib/types/project";
 import { DEFAULT_PALETTE, type Pattern } from "@/lib/types/pattern";
 import type { Project, ProjectYarn, WorkSession } from "@/lib/types/project";
@@ -248,39 +250,63 @@ export default async function PatronCompletoPage({
           <section className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 font-heading text-lg italic text-navy">
               <Palette size={18} />
-              Gráficos de color
+              Diagramas
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {patterns.map((pattern) => {
                 const colors = pattern.palettes?.colors ?? DEFAULT_PALETTE;
                 const zone = pattern.garment_zone;
                 const zoneLabel = zone ? GARMENT_ZONE_LABELS[zone as GarmentZone] : null;
                 const sync = syncByPatternId[pattern.id];
+                const isStitch = pattern.display_mode === "stitch";
                 return (
-                  <div key={pattern.id} className="flex items-start gap-4">
-                    <PatternThumbnail
-                      gridData={pattern.grid_data}
-                      width={pattern.width_stitches}
-                      height={pattern.height_rows}
-                      backgroundHex={colors[0]?.hex ?? "#faf7f2"}
-                      size={120}
-                      mode={pattern.display_mode}
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-navy">{pattern.name}</p>
-                      <p className="text-xs text-charcoal/60">
-                        Usar en: {zoneLabel ?? "sin zona definida"} · {pattern.width_stitches} ×{" "}
-                        {pattern.height_rows} puntos
-                      </p>
-                      {sync ? (
-                        <p className="mt-1 text-xs text-olive">{syncGuidanceText(sync, pattern.name)}</p>
-                      ) : zone && !isChartableZone(zone) ? (
-                        <p className="mt-1 text-xs text-charcoal/50">
-                          Esta zona no tiene un tramo de vueltas propio para sincronizar
-                          automáticamente.
-                        </p>
-                      ) : null}
+                  <div key={pattern.id} className="rounded-yakana border border-linen bg-white p-3">
+                    <p className="text-sm font-medium text-navy">{pattern.name}</p>
+                    <p className="mb-2 text-xs text-charcoal/60">
+                      Usar en: {zoneLabel ?? "sin zona definida"} · {pattern.width_stitches} ×{" "}
+                      {pattern.height_rows} puntos ·{" "}
+                      {isStitch ? "Diagrama de puntos" : "Diagrama de colores"}
+                    </p>
+
+                    <div className="overflow-x-auto">
+                      {isStitch ? (
+                        <StitchChartDisplay gridData={pattern.grid_data} width={pattern.width_stitches} height={pattern.height_rows} />
+                      ) : (
+                        <ColorChartDisplay
+                          gridData={pattern.grid_data}
+                          width={pattern.width_stitches}
+                          height={pattern.height_rows}
+                          backgroundHex={colors[0]?.hex ?? "#faf7f2"}
+                        />
+                      )}
                     </div>
+
+                    {isStitch ? (
+                      <div className="mt-3 space-y-2">
+                        <StitchChartLegend gridData={pattern.grid_data} />
+                        <details>
+                          <summary className="cursor-pointer text-xs font-medium text-navy">
+                            Ver instrucciones vuelta por vuelta de este diagrama
+                          </summary>
+                          <ol className="mt-2 list-inside list-decimal space-y-1 text-xs text-charcoal/80">
+                            {buildStitchRowInstructions(
+                              pattern.grid_data,
+                              pattern.width_stitches,
+                              pattern.height_rows,
+                            ).map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ol>
+                        </details>
+                      </div>
+                    ) : sync ? (
+                      <p className="mt-2 text-xs text-olive">{syncGuidanceText(sync, pattern.name)}</p>
+                    ) : zone && !isChartableZone(zone) ? (
+                      <p className="mt-2 text-xs text-charcoal/50">
+                        Esta zona no tiene un tramo de vueltas propio para sincronizar
+                        automáticamente.
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}
