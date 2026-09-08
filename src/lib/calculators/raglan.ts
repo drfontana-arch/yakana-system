@@ -1,5 +1,7 @@
 import { neckStyleLabel, closureTypeLabel, type ClosureType, type BodyFit } from "@/lib/calculators/raglan-options";
 
+export type WorkingMethod = "circular" | "flat";
+
 export type RaglanInputs = {
   stitchesPer10cm: number;
   rowsPer10cm: number;
@@ -12,6 +14,7 @@ export type RaglanInputs = {
   cuffCircumferenceCm: number;
   underarmEaseCm: number;
   direction: "top_down" | "bottom_up";
+  workingMethod?: WorkingMethod;
 };
 
 export type RaglanResults = {
@@ -75,8 +78,16 @@ export function calculateRaglan(inputs: RaglanInputs): RaglanResults {
   );
   const increaseRounds = Math.max(1, Math.round(totalIncreases / 8));
 
+  const workingMethod = inputs.workingMethod ?? "circular";
+  // Working flat means every increase/decrease round can only fall on a
+  // right-side row — every 2nd row, not every row — so round the interval
+  // up to the nearest even number instead of leaving it at whatever the
+  // circular math produced.
+  const toValidInterval = (n: number) =>
+    workingMethod === "flat" ? Math.max(2, n % 2 === 0 ? n : n + 1) : Math.max(1, n);
+
   const yokeRows = rowsFor(yokeDepthCm, rowsPer10cm);
-  const increaseEveryNRows = Math.max(1, Math.floor(yokeRows / increaseRounds));
+  const increaseEveryNRows = toValidInterval(Math.floor(yokeRows / increaseRounds));
 
   const bodyRows = rowsFor(bodyLengthCm, rowsPer10cm);
 
@@ -85,7 +96,9 @@ export function calculateRaglan(inputs: RaglanInputs): RaglanResults {
   const cuffStitches = stitchesFor(cuffCircumferenceCm, stitchesPer10cm);
   const sleeveRows = rowsFor(sleeveLengthCm, rowsPer10cm);
   const sleeveDecreases = Math.max(0, Math.round((sleeveInitialStitches - cuffStitches) / 2));
-  const sleeveDecreaseEveryNRows = Math.max(1, Math.floor(sleeveRows / Math.max(1, sleeveDecreases)));
+  const sleeveDecreaseEveryNRows = toValidInterval(
+    Math.floor(sleeveRows / Math.max(1, sleeveDecreases)),
+  );
 
   return {
     neckCastOn,
@@ -128,13 +141,19 @@ export function buildRowByRowInstructions(
   const lines: string[] = [];
   const dirLabel = inputs.direction === "top_down" ? "de arriba hacia abajo" : "de abajo hacia arriba";
   const isOpenFront = closureType !== "pullover";
+  const isFlatMethod = inputs.workingMethod === "flat";
+  const isFlat = isOpenFront || isFlatMethod;
   const placketStitches = isOpenFront ? stitchesFor(2, inputs.stitchesPer10cm) : 0;
 
-  lines.push(`Construcción ${dirLabel}.`);
+  lines.push(`Construcción ${dirLabel}, con agujas ${isFlat ? "rectas (tejido plano)" : "circulares (en redondo)"}.`);
 
   if (isOpenFront) {
     lines.push(
       `Es una prenda abierta adelante (${closureTypeLabel(closureType).toLowerCase()}) — a partir de separar las mangas, tejé el cuerpo PLANO (no en redondo), dividiendo el delantero en dos mitades sobre la línea central. Sumá ${placketStitches} p. en cada borde delantero para la ${closureType === "button_placket" ? "botonera" : "cinta de cierre"}.`,
+    );
+  } else if (isFlatMethod) {
+    lines.push(
+      "Elegiste tejido plano: no unas en redondo — tejé de ida y vuelta (una vuelta al derecho, la siguiente al revés) durante toda la prenda, y cerrá con una costura en el centro de la espalda (o delantero) al terminar.",
     );
   }
 
@@ -160,12 +179,12 @@ export function buildRowByRowInstructions(
     lines.push(
       `Separá las mangas: pasá los puntos de cada manga (${results.sleeveInitialStitches - results.underarmEaseStitches} p.) a hilo auxiliar, montá ${results.underarmEaseStitches} p. nuevos en cada axila para unir delantero y espalda.`,
     );
-    lines.push(bodyInstructionLine(results, bodyFit, isOpenFront));
+    lines.push(bodyInstructionLine(results, bodyFit, isFlat));
     lines.push(
       `Mangas: retomá los ${results.sleeveInitialStitches} p. de cada manga (incluida la parte del axila), tejé disminuyendo 2 p. cada ${results.sleeveDecreaseEveryNRows} ${rowWord(results.sleeveDecreaseEveryNRows)}, ${results.sleeveDecreases} veces, hasta llegar a ${results.cuffStitches} p. Tejé ${results.sleeveRows} vueltas en total y terminá con el puño.`,
     );
   } else {
-    lines.push(bodyInstructionLine(results, bodyFit, isOpenFront, true));
+    lines.push(bodyInstructionLine(results, bodyFit, isFlat, true));
     lines.push(
       `Mangas (tejidas por separado): montá ${results.cuffStitches} p. en el puño, aumentá 2 p. cada ${results.sleeveDecreaseEveryNRows} ${rowWord(results.sleeveDecreaseEveryNRows)}, ${results.sleeveDecreases} veces, hasta ${results.sleeveInitialStitches} p. Tejé ${results.sleeveRows} vueltas en total.`,
     );
@@ -197,11 +216,11 @@ export function buildRowByRowInstructions(
 function bodyInstructionLine(
   results: RaglanResults,
   bodyFit: BodyFit,
-  isOpenFront: boolean,
+  isFlat: boolean,
   isBottomUp = false,
 ): string {
   const shape = isBottomUp ? "hasta la axila" : "hasta el largo deseado, y terminá con el elástico inferior";
-  const knitAs = isOpenFront ? "plano" : "en redondo";
+  const knitAs = isFlat ? "plano" : "en redondo";
 
   if (bodyFit === "fitted") {
     const waistStitches = Math.max(1, Math.round(results.underarmStitches * 0.9));

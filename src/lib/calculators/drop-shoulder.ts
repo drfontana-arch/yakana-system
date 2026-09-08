@@ -1,5 +1,7 @@
 import { neckStyleLabel, closureTypeLabel, type ClosureType, type BodyFit } from "@/lib/calculators/raglan-options";
 
+export type WorkingMethod = "circular" | "flat";
+
 // Drop-shoulder construction: the body is worked straight (no shaping at
 // all) from the underarm up to the shoulder line, and the sleeve is set in
 // with a straight seam instead of a shaped cap — that's what makes the
@@ -17,6 +19,7 @@ export type DropShoulderInputs = {
   sleeveCircumferenceCm: number; // upper arm, at the top of the sleeve
   cuffCircumferenceCm: number;
   underarmEaseCm: number;
+  workingMethod?: WorkingMethod;
 };
 
 export type DropShoulderResults = {
@@ -69,7 +72,13 @@ export function calculateDropShoulder(inputs: DropShoulderInputs): DropShoulderR
   const cuffStitches = stitchesFor(cuffCircumferenceCm, stitchesPer10cm);
   const sleeveRows = rowsFor(sleeveLengthCm, rowsPer10cm);
   const sleeveIncreases = Math.max(0, Math.round((sleeveTargetStitches - cuffStitches) / 2));
-  const sleeveIncreaseEveryNRows = Math.max(1, Math.floor(sleeveRows / Math.max(1, sleeveIncreases)));
+  // Working flat means an increase can only happen on a right-side row —
+  // every 2nd row — so round the interval up to the nearest even number.
+  const rawInterval = Math.floor(sleeveRows / Math.max(1, sleeveIncreases));
+  const sleeveIncreaseEveryNRows =
+    inputs.workingMethod === "flat"
+      ? Math.max(2, rawInterval % 2 === 0 ? rawInterval : rawInterval + 1)
+      : Math.max(1, rawInterval);
 
   return {
     bodyStitches,
@@ -111,16 +120,25 @@ export function buildDropShoulderInstructions(
   neckStyle: string,
   closureType: ClosureType = "pullover",
   bodyFit: BodyFit = "straight",
+  workingMethod: WorkingMethod = "circular",
 ): string[] {
   const lines: string[] = [];
   const isOpenFront = closureType !== "pullover";
-  const knitAs = isOpenFront ? "plano" : "en redondo";
+  const isFlatMethod = workingMethod === "flat";
+  const isFlat = isOpenFront || isFlatMethod;
+  const knitAs = isFlat ? "plano" : "en redondo";
 
-  lines.push("Construcción de abajo hacia arriba, hombro caído (sin canesú ni disminuciones de sisa).");
+  lines.push(
+    `Construcción de abajo hacia arriba, hombro caído (sin canesú ni disminuciones de sisa), con agujas ${isFlat ? "rectas (tejido plano)" : "circulares (en redondo)"}.`,
+  );
 
   if (isOpenFront) {
     lines.push(
       `Es una prenda abierta adelante (${closureTypeLabel(closureType).toLowerCase()}) — tejé el cuerpo plano, en dos mitades delanteras separadas por la línea central, en vez de en redondo.`,
+    );
+  } else if (isFlatMethod) {
+    lines.push(
+      "Elegiste tejido plano: no unas en redondo — tejé de ida y vuelta (una vuelta al derecho, la siguiente al revés), y cerrá con una costura lateral de axila a ruedo al terminar.",
     );
   }
 

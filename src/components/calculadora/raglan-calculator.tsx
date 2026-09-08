@@ -7,6 +7,7 @@ import {
   buildRowByRowInstructions,
   calculateYarnMeters,
   type RaglanInputs,
+  type WorkingMethod,
 } from "@/lib/calculators/raglan";
 import { updateStandardSize } from "@/lib/actions/sizes";
 import { saveRaglanCalculation } from "@/lib/actions/raglan";
@@ -79,6 +80,7 @@ export function RaglanCalculator({
   const [needleMm, setNeedleMm] = useState(4);
 
   const [direction, setDirection] = useState<"top_down" | "bottom_up">("top_down");
+  const [workingMethod, setWorkingMethod] = useState<WorkingMethod>("circular");
   const [neckStyle, setNeckStyle] = useState("crew");
   const [closureType, setClosureType] = useState<ClosureType>("pullover");
   const [bodyFit, setBodyFit] = useState<BodyFit>("straight");
@@ -126,6 +128,7 @@ export function RaglanCalculator({
     cuffCircumferenceCm: measurements.cuffCircumferenceCm,
     underarmEaseCm,
     direction,
+    workingMethod,
   };
 
   const ready =
@@ -349,6 +352,23 @@ export function RaglanCalculator({
                 <option value="top_down">De arriba hacia abajo</option>
                 <option value="bottom_up">De abajo hacia arriba</option>
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-navy">Agujas</label>
+              <select
+                value={workingMethod}
+                onChange={(e) => setWorkingMethod(e.target.value as WorkingMethod)}
+                disabled={closureType !== "pullover"}
+                className="w-full rounded-yakana border border-linen bg-white px-3 py-2 text-sm outline-none focus:border-terracotta disabled:opacity-50"
+              >
+                <option value="circular">Circulares (en redondo)</option>
+                <option value="flat">Rectas (tejido plano)</option>
+              </select>
+              {closureType !== "pullover" ? (
+                <p className="mt-1 text-xs text-charcoal/50">
+                  Con este cierre ya se teje plano siempre.
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-navy">Cuello</label>

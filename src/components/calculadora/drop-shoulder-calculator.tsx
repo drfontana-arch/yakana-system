@@ -6,6 +6,7 @@ import {
   buildDropShoulderInstructions,
   calculateDropShoulderYarnMeters,
   type DropShoulderInputs,
+  type WorkingMethod,
 } from "@/lib/calculators/drop-shoulder";
 import { NECK_STYLES, CLOSURE_TYPES, BODY_FITS, type ClosureType, type BodyFit } from "@/lib/calculators/raglan-options";
 import { DropShoulderSketch } from "@/components/calculadora/drop-shoulder-sketch";
@@ -60,6 +61,7 @@ export function DropShoulderCalculator({
   const [rowsPer10cm, setRowsPer10cm] = useState(28);
   const [needleMm, setNeedleMm] = useState(4);
 
+  const [workingMethod, setWorkingMethod] = useState<WorkingMethod>("circular");
   const [neckStyle, setNeckStyle] = useState("crew");
   const [closureType, setClosureType] = useState<ClosureType>("pullover");
   const [bodyFit, setBodyFit] = useState<BodyFit>("straight");
@@ -91,6 +93,7 @@ export function DropShoulderCalculator({
     sleeveCircumferenceCm: measurements.sleeveCircumferenceCm,
     cuffCircumferenceCm: measurements.cuffCircumferenceCm,
     underarmEaseCm,
+    workingMethod,
   };
 
   const ready =
@@ -102,7 +105,7 @@ export function DropShoulderCalculator({
 
   const results = ready ? calculateDropShoulder(inputs) : null;
   const instructions = results
-    ? buildDropShoulderInstructions(results, neckStyle, closureType, bodyFit)
+    ? buildDropShoulderInstructions(results, neckStyle, closureType, bodyFit, workingMethod)
     : [];
   const yarnMeters = results ? calculateDropShoulderYarnMeters(results, stitchesPer10cm, wastePct) : 0;
 
@@ -194,6 +197,23 @@ export function DropShoulderCalculator({
         <section className="rounded-yakana border border-linen bg-offwhite p-4">
           <h2 className="mb-3 font-heading text-lg italic text-navy">Construcción</h2>
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-navy">Agujas</label>
+              <select
+                value={workingMethod}
+                onChange={(e) => setWorkingMethod(e.target.value as WorkingMethod)}
+                disabled={closureType !== "pullover"}
+                className="w-full rounded-yakana border border-linen bg-white px-3 py-2 text-sm outline-none focus:border-terracotta disabled:opacity-50"
+              >
+                <option value="circular">Circulares (en redondo)</option>
+                <option value="flat">Rectas (tejido plano)</option>
+              </select>
+              {closureType !== "pullover" ? (
+                <p className="mt-1 text-xs text-charcoal/50">
+                  Con este cierre ya se teje plano siempre.
+                </p>
+              ) : null}
+            </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-navy">Cuello</label>
               <select
