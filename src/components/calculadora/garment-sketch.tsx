@@ -221,9 +221,9 @@ export function GarmentSketch({
           );
         })}
         <linearGradient id={`sheen-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.35} />
-          <stop offset="45%" stopColor="#ffffff" stopOpacity={0.05} />
-          <stop offset="100%" stopColor="#1a2744" stopOpacity={0.12} />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.6} />
+          <stop offset="40%" stopColor="#ffffff" stopOpacity={0.08} />
+          <stop offset="100%" stopColor="#1a2744" stopOpacity={0.32} />
         </linearGradient>
         <filter id={`softShadow-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#1a2744" floodOpacity={0.18} />
