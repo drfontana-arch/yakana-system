@@ -25,7 +25,7 @@ export default async function ProjectFotosPage({
 
       <div className="rounded-yakana border border-dashed border-linen bg-offwhite p-4 text-sm text-charcoal/60">
         El boceto digital (dibujar directo en la pantalla) todavía no está disponible — lo
-        sumamos más adelante junto con el Estudio de patrones.
+        sumamos más adelante junto con el Diagrama de patrones.
       </div>
 
       {!media || media.length === 0 ? (

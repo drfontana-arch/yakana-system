@@ -112,7 +112,9 @@ export default async function PatronCompletoPage({
   const zoneFills: Partial<Record<GarmentZone, ZoneFill>> = {};
   for (const pattern of patterns ?? []) {
     const zone = pattern.garment_zone as GarmentZone | null;
-    if (!zone) continue;
+    // Stitch-symbol diagrams don't have real colors to tile into the sketch
+    // — only color diagrams feed the realistic preview.
+    if (!zone || pattern.display_mode === "stitch") continue;
     zoneFills[zone] = {
       gridData: pattern.grid_data,
       colors: pattern.palettes?.colors ?? DEFAULT_PALETTE,
@@ -262,6 +264,7 @@ export default async function PatronCompletoPage({
                       height={pattern.height_rows}
                       backgroundHex={colors[0]?.hex ?? "#faf7f2"}
                       size={120}
+                      mode={pattern.display_mode}
                     />
                     <div>
                       <p className="text-sm font-medium text-navy">{pattern.name}</p>

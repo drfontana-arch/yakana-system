@@ -25,6 +25,32 @@ export default async function NuevoPatronPage({
       />
       <form action={createPattern} className="max-w-md space-y-4">
         <Field label="Nombre *" name="name" required placeholder="Mi patrón nuevo" />
+
+        <fieldset>
+          <legend className="mb-1 block text-sm font-medium text-navy">Tipo de diagrama</legend>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex cursor-pointer items-start gap-2 rounded-yakana border border-linen bg-white p-3 text-sm has-[:checked]:border-terracotta has-[:checked]:bg-terracotta/5">
+              <input type="radio" name="display_mode" value="color" defaultChecked className="mt-1" />
+              <span>
+                <span className="block font-medium text-navy">Diagrama de colores</span>
+                <span className="block text-xs text-charcoal/60">
+                  Pintás una grilla con colores — para jacquard, intarsia, guardas.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2 rounded-yakana border border-linen bg-white p-3 text-sm has-[:checked]:border-terracotta has-[:checked]:bg-terracotta/5">
+              <input type="radio" name="display_mode" value="stitch" className="mt-1" />
+              <span>
+                <span className="block font-medium text-navy">Diagrama de puntos</span>
+                <span className="block text-xs text-charcoal/60">
+                  Marcás símbolos de tejido (derecho, revés, ojal, disminución) y se arma solo el
+                  paso a paso escrito.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
         <div className="grid grid-cols-2 gap-4">
           <Field
             label="Ancho (puntos) *"

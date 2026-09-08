@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PatternEditor } from "@/components/estudio/pattern-editor";
+import { StitchPatternEditor } from "@/components/estudio/stitch-pattern-editor";
 import { deletePattern } from "@/lib/actions/patterns";
 import { zoneStitchCount } from "@/lib/pattern-sync";
 import { DEFAULT_PALETTE, type Pattern, type PaletteColor } from "@/lib/types/pattern";
@@ -73,12 +74,16 @@ export default async function PatternEditorPage({
         </div>
       </div>
 
-      <PatternEditor
-        pattern={pattern}
-        initialColors={initialColors}
-        globalPalettes={globalPalettes ?? []}
-        suggestedRepeatWidth={suggestedRepeatWidth}
-      />
+      {pattern.display_mode === "stitch" ? (
+        <StitchPatternEditor pattern={pattern} />
+      ) : (
+        <PatternEditor
+          pattern={pattern}
+          initialColors={initialColors}
+          globalPalettes={globalPalettes ?? []}
+          suggestedRepeatWidth={suggestedRepeatWidth}
+        />
+      )}
     </div>
   );
 }

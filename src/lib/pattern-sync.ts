@@ -62,7 +62,7 @@ export function computeZoneSync(
 
 export function syncGuidanceText(sync: ZoneSync, patternName: string): string {
   if (!sync.fits) {
-    return `El gráfico "${patternName}" tiene ${sync.chartRows} filas, pero este tramo solo tiene ${sync.sectionRows} vueltas — no entra completo. Achicá el gráfico en el Estudio o extendé el tramo.`;
+    return `El gráfico "${patternName}" tiene ${sync.chartRows} filas, pero este tramo solo tiene ${sync.sectionRows} vueltas — no entra completo. Achicá el gráfico en el Diagrama o extendé el tramo.`;
   }
   if (sync.remainderRows === 0) {
     return `Empezá el gráfico "${patternName}" en la fila 1 y repetilo ${sync.repeats} ${sync.repeats === 1 ? "vez" : "veces"} seguidas hasta completar las ${sync.sectionRows} vueltas de este tramo.`;

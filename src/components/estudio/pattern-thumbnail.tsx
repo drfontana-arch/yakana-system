@@ -9,12 +9,14 @@ export function PatternThumbnail({
   height,
   backgroundHex,
   size = 96,
+  mode = "color",
 }: {
   gridData: GridData;
   width: number;
   height: number;
   backgroundHex: string;
   size?: number;
+  mode?: string;
 }) {
   if (width * height > MAX_CELLS_FOR_LIVE_PREVIEW) {
     return (
@@ -27,6 +29,8 @@ export function PatternThumbnail({
     );
   }
 
+  const isStitch = mode === "stitch";
+
   return (
     <div
       className="shrink-0 overflow-hidden rounded-yakana border border-linen"
@@ -36,18 +40,19 @@ export function PatternThumbnail({
         display: "grid",
         gridTemplateColumns: `repeat(${width}, 1fr)`,
         gridTemplateRows: `repeat(${height}, 1fr)`,
-        backgroundColor: backgroundHex,
+        backgroundColor: isStitch ? "#faf7f2" : backgroundHex,
       }}
     >
       {Array.from({ length: width * height }).map((_, i) => {
         const col = i % width;
         const row = Math.floor(i / width);
-        const hex = gridData[`${col},${row}`];
-        return hex ? (
-          <div key={i} style={{ backgroundColor: hex }} />
-        ) : (
-          <div key={i} />
-        );
+        const value = gridData[`${col},${row}`];
+        if (isStitch) {
+          // Symbol codes aren't colors — just show marked vs. blank cells so
+          // the overall texture/motif shape reads at a glance.
+          return value ? <div key={i} style={{ backgroundColor: "#8a8168" }} /> : <div key={i} />;
+        }
+        return value ? <div key={i} style={{ backgroundColor: value }} /> : <div key={i} />;
       })}
     </div>
   );

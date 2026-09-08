@@ -23,8 +23,8 @@ export default async function EstudioPage({
     <div>
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <PageHeader
-          title="Estudio"
-          description="Diseñá grillas de patrones en modo color."
+          title="Diagrama"
+          description="Diagramas de colores y de puntos para tus patrones."
         />
         <Link
           href="/estudio/nuevo"
@@ -65,13 +65,15 @@ export default async function EstudioPage({
                   height={pattern.height_rows}
                   backgroundHex={colors[0]?.hex ?? "#faf7f2"}
                   size={64}
+                  mode={pattern.display_mode}
                 />
                 <div className="min-w-0">
                   <p className="truncate font-heading text-lg italic text-navy">
                     {pattern.name}
                   </p>
                   <p className="mt-1 text-xs text-charcoal/60">
-                    {pattern.width_stitches} × {pattern.height_rows} puntos
+                    {pattern.width_stitches} × {pattern.height_rows} puntos ·{" "}
+                    {pattern.display_mode === "stitch" ? "Puntos" : "Colores"}
                   </p>
                 </div>
               </Link>

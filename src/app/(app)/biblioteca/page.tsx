@@ -67,7 +67,7 @@ export default async function BibliotecaPage({
       </h2>
       {ownEntries.length === 0 ? (
         <p className="mb-8 text-sm text-charcoal/60">
-          Todavía no publicaste ningún patrón del Estudio a la biblioteca.
+          Todavía no publicaste ningún patrón del Diagrama a la biblioteca.
         </p>
       ) : (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

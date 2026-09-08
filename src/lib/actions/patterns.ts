@@ -17,6 +17,7 @@ export async function createPattern(formData: FormData) {
   const width = Number(formData.get("width_stitches"));
   const height = Number(formData.get("height_rows"));
   const projectId = (formData.get("project_id") as string) || null;
+  const displayMode = (formData.get("display_mode") as string) || "color";
 
   const { data: palette, error: paletteError } = await supabase
     .from("palettes")
@@ -41,7 +42,7 @@ export async function createPattern(formData: FormData) {
       name,
       width_stitches: width,
       height_rows: height,
-      display_mode: "color",
+      display_mode: displayMode,
       grid_data: {},
       palette_id: palette.id,
       source_type: "original",

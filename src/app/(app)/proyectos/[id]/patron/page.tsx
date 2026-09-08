@@ -165,6 +165,7 @@ async function PatternCard({
           width={pattern.width_stitches}
           height={pattern.height_rows}
           backgroundHex={colors[0]?.hex ?? "#faf7f2"}
+          mode={pattern.display_mode}
         />
         <div className="min-w-0 flex-1">
           <p className="font-heading text-lg italic text-navy">{pattern.name}</p>
@@ -203,14 +204,18 @@ async function PatternCard({
             <GarmentSketch
               {...measurements}
               highlightZone={pattern.garment_zone as GarmentZone}
-              zoneFills={{
-                [pattern.garment_zone as GarmentZone]: {
-                  gridData: pattern.grid_data,
-                  colors: pattern.palettes?.colors ?? DEFAULT_PALETTE,
-                  widthStitches: pattern.width_stitches,
-                  heightRows: pattern.height_rows,
-                } as ZoneFill,
-              }}
+              zoneFills={
+                pattern.display_mode === "stitch"
+                  ? undefined
+                  : {
+                      [pattern.garment_zone as GarmentZone]: {
+                        gridData: pattern.grid_data,
+                        colors: pattern.palettes?.colors ?? DEFAULT_PALETTE,
+                        widthStitches: pattern.width_stitches,
+                        heightRows: pattern.height_rows,
+                      } as ZoneFill,
+                    }
+              }
             />
           </div>
         ) : null}

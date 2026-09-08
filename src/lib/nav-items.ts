@@ -20,7 +20,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/estudio", label: "Estudio", icon: Palette },
+  { href: "/estudio", label: "Diagrama", icon: Palette },
   { href: "/calculadora", label: "Calculadora", icon: Calculator },
   { href: "/colores", label: "Colores", icon: SwatchBook },
   { href: "/inventario", label: "Inventario", icon: PackageSearch },
