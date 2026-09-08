@@ -236,7 +236,7 @@ export function DropShoulderCalculator({
                 ))}
               </select>
             </div>
-            <NumField label="Holgura en axila (cm)" value={underarmEaseCm} onChange={setUnderarmEaseCm} />
+            <NumField label="Holgura (cm)" value={underarmEaseCm} onChange={setUnderarmEaseCm} />
             <NumField label="Merma de lana (%)" value={wastePct} onChange={setWastePct} />
           </div>
           {neckStyle !== "crew" ? (

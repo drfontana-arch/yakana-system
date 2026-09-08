@@ -393,7 +393,7 @@ export function RaglanCalculator({
               </select>
             </div>
             <NumField
-              label="Holgura en axila (cm)"
+              label="Holgura (cm)"
               value={underarmEaseCm}
               onChange={setUnderarmEaseCm}
             />
