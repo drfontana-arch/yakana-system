@@ -3,8 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText, Pencil, Trash2 } from "lucide-react";
-import { updateLibraryEntry, deleteLibraryEntry } from "@/lib/actions/library";
+import { FileText, Pencil, Sparkles, Trash2 } from "lucide-react";
+import {
+  updateLibraryEntry,
+  deleteLibraryEntry,
+  analyzeLibraryPatternImage,
+} from "@/lib/actions/library";
 import { isPdfUrl } from "@/lib/types/library";
 import type { LibraryEntry } from "@/lib/types/library";
 
@@ -25,8 +29,23 @@ export function LibraryEntryCard({
   const [notes, setNotes] = useState(entry.notes ?? "");
   const [dirty, setDirty] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
 
   const updateWithId = updateLibraryEntry.bind(null, entry.id);
+  const canAnalyze = !!viewUrl && !isPdfUrl(viewUrl);
+
+  async function handleAnalyze() {
+    setAnalyzing(true);
+    setAnalyzeError("");
+    const result = await analyzeLibraryPatternImage(entry.id);
+    setAnalyzing(false);
+    if ("error" in result) {
+      setAnalyzeError(result.error);
+      return;
+    }
+    markDirty(setNotes)(result.notes);
+  }
 
   function markDirty<T>(setter: (v: T) => void) {
     return (v: T) => {
@@ -123,8 +142,23 @@ export function LibraryEntryCard({
         onChange={(e) => markDirty(setNotes)(e.target.value)}
         placeholder="Notas personales"
         rows={2}
-        className="mb-2 w-full rounded border border-linen bg-white px-2 py-1 text-xs outline-none focus:border-terracotta"
+        className="mb-1.5 w-full rounded border border-linen bg-white px-2 py-1 text-xs outline-none focus:border-terracotta"
       />
+
+      {canAnalyze ? (
+        <div className="mb-2">
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            className="flex items-center gap-1 rounded-yakana border border-terracotta px-2.5 py-1 text-xs font-medium text-terracotta hover:bg-terracotta/10 disabled:opacity-50"
+          >
+            <Sparkles size={12} />
+            {analyzing ? "Analizando..." : "Analizar con IA"}
+          </button>
+          {analyzeError ? <p className="mt-1 text-xs text-terracotta">{analyzeError}</p> : null}
+        </div>
+      ) : null}
 
       <div className="flex items-center gap-2">
         {dirty ? (
