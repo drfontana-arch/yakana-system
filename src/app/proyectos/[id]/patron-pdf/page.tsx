@@ -1,9 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { DownloadPdfButton } from "@/components/proyectos/download-pdf-button";
 import { GarmentSketch } from "@/components/calculadora/garment-sketch";
-import { ImagePromptGenerator } from "@/components/proyectos/image-prompt-generator";
 import { ColorChartDisplay } from "@/components/estudio/color-chart-display";
 import { StitchChartDisplay, StitchChartLegend } from "@/components/estudio/stitch-chart-display";
 import {
@@ -11,8 +12,6 @@ import {
   type GarmentZone,
   type ZoneFill,
 } from "@/components/calculadora/garment-sketch";
-import { computeProjectCost } from "@/lib/project-cost";
-import { money, formatMinutes } from "@/lib/format";
 import {
   isChartableZone,
   computeZoneSync,
@@ -22,7 +21,7 @@ import {
 import { buildStitchRowInstructions } from "@/lib/stitch-chart";
 import { CONSTRUCTION_DIRECTIONS, PROJECT_TYPES } from "@/lib/types/project";
 import { DEFAULT_PALETTE, type Pattern } from "@/lib/types/pattern";
-import type { Project, ProjectYarn, WorkSession } from "@/lib/types/project";
+import type { Project, ProjectYarn } from "@/lib/types/project";
 
 type SavedCalc = {
   size_label: string | null;
@@ -31,68 +30,53 @@ type SavedCalc = {
   row_by_row_instructions: string[] | null;
 };
 
-export default async function PatronCompletoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PatronPdfPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [
-    { data: project },
-    { data: projectYarns },
-    { data: sessions },
-    { data: calc },
-    { data: patterns },
-    { data: profile },
-  ] = await Promise.all([
-    supabase.from("projects").select("*").eq("id", id).single<Project>(),
-    supabase.from("project_yarns").select("*, yarns(*)").eq("project_id", id).returns<ProjectYarn[]>(),
-    supabase.from("work_sessions").select("*").eq("project_id", id).returns<WorkSession[]>(),
-    supabase
-      .from("raglan_calculations")
-      .select("size_label, measurements, results, row_by_row_instructions")
-      .eq("project_id", id)
-      .eq("is_miniature", false)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<SavedCalc>(),
-    supabase
-      .from("patterns")
-      .select("*, palettes(*)")
-      .eq("project_id", id)
-      .not("garment_zone", "is", null)
-      .returns<Pattern[]>(),
-    user
-      ? supabase
-          .from("user_profiles")
-          .select("markup_factor")
-          .eq("id", user.id)
-          .single<{ markup_factor: number | null }>()
-      : Promise.resolve({ data: null }),
-  ]);
+  const [{ data: project }, { data: projectYarns }, { data: calc }, { data: patterns }, { data: profile }] =
+    await Promise.all([
+      supabase.from("projects").select("*").eq("id", id).single<Project>(),
+      supabase
+        .from("project_yarns")
+        .select("*, yarns(*)")
+        .eq("project_id", id)
+        .returns<ProjectYarn[]>(),
+      supabase
+        .from("raglan_calculations")
+        .select("size_label, measurements, results, row_by_row_instructions")
+        .eq("project_id", id)
+        .eq("is_miniature", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<SavedCalc>(),
+      supabase
+        .from("patterns")
+        .select("*, palettes(*)")
+        .eq("project_id", id)
+        .not("garment_zone", "is", null)
+        .returns<Pattern[]>(),
+      user
+        ? supabase
+            .from("user_profiles")
+            .select("name, brand_name")
+            .eq("id", user.id)
+            .single<{ name: string | null; brand_name: string | null }>()
+        : Promise.resolve({ data: null }),
+    ]);
 
   if (!project) notFound();
 
-  const cost = computeProjectCost(
-    projectYarns ?? [],
-    sessions ?? [],
-    project.hourly_rate ?? 0,
-    profile?.markup_factor ?? 3.0,
-  );
-
+  const brandName = profile?.brand_name || "Yakana";
   const typeLabel = PROJECT_TYPES.find((t) => t.value === project.type)?.label;
   const directionLabel = CONSTRUCTION_DIRECTIONS.find(
     (d) => d.value === project.construction_direction,
   )?.label;
   const m = calc?.measurements;
 
-  // Work out, per zone, exactly which fila of each linked chart to start on
-  // and how many times it repeats across that zone's actual row count.
   const syncByPatternId: Record<string, ReturnType<typeof computeZoneSync>> = {};
   const calloutsByZone: Record<string, string[]> = {};
   for (const pattern of patterns ?? []) {
@@ -109,14 +93,9 @@ export default async function PatronCompletoPage({
     ? buildAnnotatedInstructions(calc.row_by_row_instructions, calloutsByZone)
     : [];
 
-  // Feed each linked chart's real colors into the sketch, so the "Boceto de
-  // la prenda" shows the actual colorwork tiled into its zone instead of a
-  // flat highlight — the combined preview Enzo asked for.
   const zoneFills: Partial<Record<GarmentZone, ZoneFill>> = {};
   for (const pattern of patterns ?? []) {
     const zone = pattern.garment_zone as GarmentZone | null;
-    // Stitch-symbol diagrams don't have real colors to tile into the sketch
-    // — only color diagrams feed the realistic preview.
     if (!zone || pattern.display_mode === "stitch") continue;
     zoneFills[zone] = {
       gridData: pattern.grid_data,
@@ -126,40 +105,50 @@ export default async function PatronCompletoPage({
     };
   }
 
+  const subtitle = [typeLabel, project.size_label ?? calc?.size_label, project.recipient]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-3xl bg-cream px-4 py-8 print:max-w-none print:bg-white print:p-0">
+      <style>{`
+        @page { size: A4; margin: 1.6cm; }
+        @media print {
+          html, body { background: white; }
+        }
+      `}</style>
+
+      <div className="print:hidden mb-6 flex items-center justify-between">
         <Link
-          href={`/proyectos/${id}/patron`}
+          href={`/proyectos/${id}/patron-completo`}
           className="text-xs font-medium text-terracotta hover:underline"
         >
-          ← Volver a Patrón
+          ← Volver a Patrón completo
         </Link>
-        <div className="flex items-center gap-4">
-          <p className="text-xs text-charcoal/50">
-            Podés imprimir esta página (Ctrl/Cmd + P) para tejer con papel.
-          </p>
-          <Link
-            href={`/proyectos/${id}/patron-pdf`}
-            className="rounded-yakana bg-terracotta px-3 py-1.5 text-xs font-medium text-offwhite hover:bg-terracotta-dark"
-          >
-            Descargar PDF para vender/entregar
-          </Link>
-        </div>
+        <DownloadPdfButton />
       </div>
 
-      <div className="rounded-yakana border border-linen bg-offwhite p-8">
-        <header className="mb-6 border-b border-linen pb-6 text-center">
-          <p className="text-xs uppercase tracking-widest text-terracotta">Yakana — Tejido Artesanal</p>
-          <h1 className="mt-1 font-heading text-3xl italic text-navy">{project.name}</h1>
-          <p className="mt-1 text-sm text-charcoal/60">
-            {[typeLabel, project.size_label ?? calc?.size_label, project.recipient]
-              .filter(Boolean)
-              .join(" · ") || "Sin detalles todavía"}
-          </p>
-        </header>
+      {/* Portada */}
+      <section className="flex min-h-[24rem] flex-col items-center justify-center break-after-page rounded-yakana border border-linen bg-offwhite p-10 text-center print:min-h-[24cm] print:rounded-none print:border-none">
+        <Image
+          src="/brand/yakana-logo.png"
+          alt={brandName}
+          width={88}
+          height={88}
+          className="mb-4 rounded-full"
+        />
+        <p className="text-xs uppercase tracking-widest text-terracotta">
+          {brandName} — Tejido Artesanal
+        </p>
+        <h1 className="mt-4 font-heading text-4xl italic text-navy">{project.name}</h1>
+        {subtitle ? <p className="mt-2 text-sm text-charcoal/60">{subtitle}</p> : null}
+        {profile?.name ? (
+          <p className="mt-10 text-xs text-charcoal/50">Diseño de {profile.name}</p>
+        ) : null}
+      </section>
 
-        <section className="mb-6">
+      <div className="mt-8 rounded-yakana border border-linen bg-offwhite p-8 print:mt-0 print:rounded-none print:border-none print:p-0">
+        <section className="mb-6 break-inside-avoid">
           <h2 className="mb-2 font-heading text-lg italic text-navy">Ficha técnica</h2>
           <div className="grid grid-cols-2 gap-2 text-sm text-charcoal/80 sm:grid-cols-3">
             <p>
@@ -179,7 +168,7 @@ export default async function PatronCompletoPage({
         </section>
 
         {m ? (
-          <section className="mb-6">
+          <section className="mb-6 break-inside-avoid">
             <h2 className="mb-3 font-heading text-lg italic text-navy">Boceto de la prenda</h2>
             <div className="flex justify-center">
               <GarmentSketch
@@ -196,45 +185,26 @@ export default async function PatronCompletoPage({
                 zoneFills={zoneFills}
               />
             </div>
-            {Object.keys(zoneFills).length > 0 ? (
-              <p className="mt-2 text-center text-xs text-charcoal/50">
-                Las zonas con gráfico vinculado muestran sus colores reales, repetidos a modo de
-                vista previa aproximada — no está tejido a la escala exacta de tu muestra.
-              </p>
-            ) : null}
           </section>
         ) : null}
 
-        {m ? (
-          <section className="mb-6">
-            <ImagePromptGenerator projectId={id} />
-          </section>
-        ) : (
-          <p className="mb-6 rounded-yakana border border-dashed border-linen p-4 text-center text-sm text-charcoal/60">
-            Todavía no guardaste un cálculo de este proyecto desde la{" "}
-            <Link href="/calculadora" className="font-medium text-terracotta">
-              Calculadora
-            </Link>
-            .
-          </p>
-        )}
-
-        <section className="mb-6">
-          <h2 className="mb-2 font-heading text-lg italic text-navy">Materiales</h2>
-          {cost.materialLines.length === 0 ? (
-            <p className="text-sm text-charcoal/60">Todavía no vinculaste ninguna lana.</p>
-          ) : (
+        {projectYarns && projectYarns.length > 0 ? (
+          <section className="mb-6 break-inside-avoid">
+            <h2 className="mb-2 font-heading text-lg italic text-navy">Materiales</h2>
             <ul className="list-inside list-disc text-sm text-charcoal/80">
-              {cost.materialLines.map((line, i) => (
-                <li key={i}>
-                  {line.name} — {line.quantity} madeja{line.quantity === 1 ? "" : "s"}
-                </li>
-              ))}
+              {projectYarns.map((py) => {
+                const quantity = py.actual_skeins_used ?? py.estimated_skeins ?? 0;
+                return (
+                  <li key={py.id}>
+                    {py.yarns?.name ?? "Lana"} — {quantity} madeja{quantity === 1 ? "" : "s"}
+                  </li>
+                );
+              })}
             </ul>
-          )}
-        </section>
+          </section>
+        ) : null}
 
-        <section className="mb-6">
+        <section className="mb-6 break-inside-avoid">
           <h2 className="mb-2 font-heading text-lg italic text-navy">
             Instrucciones vuelta por vuelta
           </h2>
@@ -255,14 +225,12 @@ export default async function PatronCompletoPage({
               ))}
             </ol>
           ) : (
-            <p className="text-sm text-charcoal/60">
-              Todavía no guardaste un cálculo con instrucciones desde la Calculadora.
-            </p>
+            <p className="text-sm text-charcoal/60">Este proyecto todavía no tiene instrucciones guardadas.</p>
           )}
         </section>
 
         {patterns && patterns.length > 0 ? (
-          <section className="mb-6">
+          <section>
             <h2 className="mb-3 flex items-center gap-2 font-heading text-lg italic text-navy">
               <Palette size={18} />
               Diagramas
@@ -275,7 +243,10 @@ export default async function PatronCompletoPage({
                 const sync = syncByPatternId[pattern.id];
                 const isStitch = pattern.display_mode === "stitch";
                 return (
-                  <div key={pattern.id} className="rounded-yakana border border-linen bg-white p-3">
+                  <div
+                    key={pattern.id}
+                    className="break-inside-avoid rounded-yakana border border-linen bg-white p-3"
+                  >
                     <p className="text-sm font-medium text-navy">{pattern.name}</p>
                     <p className="mb-2 text-xs text-charcoal/60">
                       Usar en: {zoneLabel ?? "sin zona definida"} · {pattern.width_stitches} ×{" "}
@@ -285,7 +256,11 @@ export default async function PatronCompletoPage({
 
                     <div className="overflow-x-auto">
                       {isStitch ? (
-                        <StitchChartDisplay gridData={pattern.grid_data} width={pattern.width_stitches} height={pattern.height_rows} />
+                        <StitchChartDisplay
+                          gridData={pattern.grid_data}
+                          width={pattern.width_stitches}
+                          height={pattern.height_rows}
+                        />
                       ) : (
                         <ColorChartDisplay
                           gridData={pattern.grid_data}
@@ -299,28 +274,18 @@ export default async function PatronCompletoPage({
                     {isStitch ? (
                       <div className="mt-3 space-y-2">
                         <StitchChartLegend gridData={pattern.grid_data} />
-                        <details>
-                          <summary className="cursor-pointer text-xs font-medium text-navy">
-                            Ver instrucciones vuelta por vuelta de este diagrama
-                          </summary>
-                          <ol className="mt-2 list-inside list-decimal space-y-1 text-xs text-charcoal/80">
-                            {buildStitchRowInstructions(
-                              pattern.grid_data,
-                              pattern.width_stitches,
-                              pattern.height_rows,
-                            ).map((line, i) => (
-                              <li key={i}>{line}</li>
-                            ))}
-                          </ol>
-                        </details>
+                        <ol className="mt-2 list-inside list-decimal space-y-1 text-xs text-charcoal/80">
+                          {buildStitchRowInstructions(
+                            pattern.grid_data,
+                            pattern.width_stitches,
+                            pattern.height_rows,
+                          ).map((line, i) => (
+                            <li key={i}>{line}</li>
+                          ))}
+                        </ol>
                       </div>
                     ) : sync ? (
                       <p className="mt-2 text-xs text-olive">{syncGuidanceText(sync, pattern.name)}</p>
-                    ) : zone && !isChartableZone(zone) ? (
-                      <p className="mt-2 text-xs text-charcoal/50">
-                        Esta zona no tiene un tramo de vueltas propio para sincronizar
-                        automáticamente.
-                      </p>
                     ) : null}
                   </div>
                 );
@@ -328,28 +293,6 @@ export default async function PatronCompletoPage({
             </div>
           </section>
         ) : null}
-
-        <section>
-          <h2 className="mb-2 font-heading text-lg italic text-navy">Costos</h2>
-          <div className="text-sm text-charcoal/80">
-            <div className="flex justify-between">
-              <span>Materiales</span>
-              <span>${money(cost.materialsTotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Mano de obra ({formatMinutes(cost.totalMinutes)})</span>
-              <span>${money(cost.laborTotal)}</span>
-            </div>
-            <div className="mt-1 flex justify-between border-t border-linen pt-1 font-medium text-navy">
-              <span>Costo total</span>
-              <span>${money(cost.totalCost)}</span>
-            </div>
-            <div className="flex justify-between font-medium text-navy">
-              <span>Precio sugerido</span>
-              <span>${money(cost.suggestedPrice)}</span>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );
