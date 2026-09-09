@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { askClaudeWithImageUrl } from "@/lib/ai/client";
+import { askClaudeWithImageUrl, askClaudeWithPdfUrl } from "@/lib/ai/client";
 import { isPdfUrl } from "@/lib/types/library";
 
 function parseTags(value: FormDataEntryValue | null): string[] | null {
@@ -88,7 +88,7 @@ export async function publishPatternToLibrary(
   revalidatePath("/biblioteca");
 }
 
-export async function analyzeLibraryPatternImage(
+export async function analyzeLibraryPatternFile(
   entryId: string,
 ): Promise<{ notes: string } | { error: string }> {
   const supabase = await createClient();
@@ -100,25 +100,26 @@ export async function analyzeLibraryPatternImage(
     .single<{ file_url: string | null; notes: string | null }>();
 
   if (!entry?.file_url) return { error: "Este patrón no tiene un archivo cargado." };
-  if (isPdfUrl(entry.file_url)) {
-    return {
-      error:
-        "Por ahora la IA solo puede mirar fotos, no PDFs — si es un PDF, describí el patrón vos mismo en las notas.",
-    };
-  }
+
+  const isPdf = isPdfUrl(entry.file_url);
 
   const { data: signed, error: signError } = await supabase.storage
     .from("pattern-library")
     .createSignedUrl(entry.file_url, 300);
   if (signError || !signed) return { error: "No se pudo abrir el archivo para analizarlo." };
 
-  const prompt = `Mirá esta foto de un patrón de tejido a mano (dos agujas o crochet) y describilo en español rioplatense, en un párrafo corto (4 a 6 líneas), para que quede como nota de referencia útil más adelante. Mencioná: qué tipo de prenda o motivo es, qué puntos o técnicas se ven (trenzas, calados, colorwork, textura), los colores que aparecen, y cualquier dato de talla, muestra o medidas que esté escrito en la imagen. Si no se llega a leer algo con claridad, no lo inventes — decí que no se distingue. Respondé solo con la descripción, sin introducción.`;
+  const imagePrompt = `Mirá esta foto de un patrón de tejido a mano (dos agujas o crochet) y describilo en español rioplatense, en un párrafo corto (4 a 6 líneas), para que quede como nota de referencia útil más adelante. Mencioná: qué tipo de prenda o motivo es, qué puntos o técnicas se ven (trenzas, calados, colorwork, textura), los colores que aparecen, y cualquier dato de talla, muestra o medidas que esté escrito en la imagen. Si no se llega a leer algo con claridad, no lo inventes — decí que no se distingue. Respondé solo con la descripción, sin introducción.`;
+
+  const pdfPrompt = `Este PDF es un patrón de tejido a mano (dos agujas o crochet), posiblemente con varias páginas de instrucciones, gráficos y tabla de talles. Resumilo en español rioplatense, en 6 a 10 líneas, para que quede como nota de referencia útil más adelante. Mencioná: qué prenda o motivo es, qué puntos o técnicas usa (trenzas, calados, colorwork, aumentos/disminuciones, construcción top-down/bottom-up), los talles y la muestra (puntos y filas por 10cm) si figuran, la lana y agujas recomendadas si figuran, y cualquier otro dato clave para tejerlo. Si algo no está claro en el documento, no lo inventes — decí que no figura. Respondé solo con el resumen, sin introducción.`;
 
   try {
-    const description = await askClaudeWithImageUrl(prompt, signed.signedUrl, 400);
-    const notes = entry.notes ? `${entry.notes}\n\n📷 ${description}` : `📷 ${description}`;
+    const description = isPdf
+      ? await askClaudeWithPdfUrl(pdfPrompt, signed.signedUrl, 700)
+      : await askClaudeWithImageUrl(imagePrompt, signed.signedUrl, 400);
+    const icon = isPdf ? "📄" : "📷";
+    const notes = entry.notes ? `${entry.notes}\n\n${icon} ${description}` : `${icon} ${description}`;
     return { notes };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "No se pudo analizar la imagen." };
+    return { error: err instanceof Error ? err.message : "No se pudo analizar el archivo." };
   }
 }

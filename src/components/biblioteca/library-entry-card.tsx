@@ -7,7 +7,7 @@ import { FileText, Pencil, Sparkles, Trash2 } from "lucide-react";
 import {
   updateLibraryEntry,
   deleteLibraryEntry,
-  analyzeLibraryPatternImage,
+  analyzeLibraryPatternFile,
 } from "@/lib/actions/library";
 import { isPdfUrl } from "@/lib/types/library";
 import type { LibraryEntry } from "@/lib/types/library";
@@ -33,12 +33,12 @@ export function LibraryEntryCard({
   const [analyzeError, setAnalyzeError] = useState("");
 
   const updateWithId = updateLibraryEntry.bind(null, entry.id);
-  const canAnalyze = !!viewUrl && !isPdfUrl(viewUrl);
+  const canAnalyze = !!viewUrl;
 
   async function handleAnalyze() {
     setAnalyzing(true);
     setAnalyzeError("");
-    const result = await analyzeLibraryPatternImage(entry.id);
+    const result = await analyzeLibraryPatternFile(entry.id);
     setAnalyzing(false);
     if ("error" in result) {
       setAnalyzeError(result.error);
